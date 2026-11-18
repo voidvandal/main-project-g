@@ -1,0 +1,49 @@
+name: Deploy to AWS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency: deploy
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ap-south-1
+      HAS_KEYS: ${{ secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' && secrets.ADMIN_KEY != '' }}
+    steps:
+      - name: Check secrets
+        if: env.HAS_KEYS != 'true'
+        run: |
+          echo "::notice::Add AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and ADMIN_KEY under Settings > Secrets and variables > Actions, then re-run."
+          echo "Deployment skipped: repository secrets are not set yet." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v4
+        if: env.HAS_KEYS == 'true'
+
+      - name: Run tests
+        if: env.HAS_KEYS == 'true'
+        run: cd backend && npm test
+
+      - uses: aws-actions/setup-sam@v2
+        if: env.HAS_KEYS == 'true'
+        with:
+          use-installer: true
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: env.HAS_KEYS == 'true'
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy
+        if: env.HAS_KEYS == 'true'
+        env:
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+        run: ./scripts/deploy.sh

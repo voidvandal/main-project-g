@@ -120,3 +120,15 @@ main-project-g/
 4. **(45–60 s) Fairness.** Tap Break and show it turn amber with a 20-minute countdown. On the other device, tap a taken seat → **Report unattended**.
 5. **(60–80 s) AWS.** Quick cuts: the CloudFormation stack resources, the DynamoDB item changing, and the sweeper's CloudWatch log "released expired seats".
 6. **(80–90 s) Wrap.** "Serverless, Free Tier, deployable in one command."
+
+## Deploy from GitHub (no local setup)
+
+`.github/workflows/deploy.yml` deploys the stack on every push to `main`, or when you run it manually from the **Actions** tab. Add these under **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret | Value |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | Access key of an IAM user in your AWS account |
+| `AWS_SECRET_ACCESS_KEY` | Its secret key |
+| `ADMIN_KEY` | Any long random string (used to seed the seats) |
+
+The run's summary page shows the live app URL. Until the secrets exist, the workflow skips deployment instead of failing.

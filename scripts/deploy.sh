@@ -38,3 +38,12 @@ Done!
   API:        $API_URL/seats
 (CloudFront can take a few minutes to go live after the first deploy.)
 EOF
+
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+  {
+    echo "## SeatSpot is live"
+    echo "- App: $SITE_URL"
+    echo "- Desk QR codes: $SITE_URL/qr.html"
+    echo "- API: $API_URL/seats"
+  } >> "$GITHUB_STEP_SUMMARY"
+fi
