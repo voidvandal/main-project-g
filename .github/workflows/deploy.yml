@@ -2,6 +2,10 @@ name: Deploy to AWS
 
 on:
   workflow_dispatch:
+    inputs:
+      region:
+        description: AWS region to deploy to
+        default: ''
   push:
     branches: [main]
 
@@ -14,7 +18,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      AWS_REGION: ap-south-1
+      AWS_REGION: ${{ inputs.region || vars.AWS_REGION || 'ap-south-1' }}
       HAS_KEYS: ${{ secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' && secrets.ADMIN_KEY != '' }}
     steps:
       - name: Check secrets
