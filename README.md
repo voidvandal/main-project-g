@@ -144,3 +144,16 @@ pip install boto3
 ```bash
 ADMIN_KEY='choose-a-long-secret' python3 scripts/deploy_direct.py
 ```
+
+### If Lambda and DynamoDB are blocked too (new AWS "projects" free plan)
+
+Some new AWS accounts (the free plan "projects" experience) only allow a subset of services. Run the **Check AWS access** workflow to see which. If Lambda and DynamoDB are blocked but Lightsail and S3 are allowed (in `us-east-1`), SeatSpot runs as:
+
+```
+ Phone ──HTTPS──▶ Amazon Lightsail container service (Node.js: website + API + 1-min sweeper)
+                          │  snapshot after every change / load on start
+                          ▼
+                   Amazon S3 (private bucket, seats.json)   ◀── IAM user limited to that one file
+```
+
+The deploy workflow switches to this automatically (`scripts/deploy_lightsail.sh`, built from the `Dockerfile`). The same business logic and tests apply; only the hosting and storage change.

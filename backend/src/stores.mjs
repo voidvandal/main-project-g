@@ -76,3 +76,39 @@ export async function dynamoStore(tableName) {
     },
   };
 }
+
+// For a single long-running server (e.g. Lightsail containers): keeps seats in
+// memory and writes a JSON snapshot to S3 after every change, loading it on start.
+// Writes are serialised, so the snapshot always reflects the latest state.
+export async function s3SnapshotStore(bucket, key = 'seats.json') {
+  const { S3Client, GetObjectCommand, PutObjectCommand } = await import('@aws-sdk/client-s3');
+  const s3 = new S3Client({ forcePathStyle: process.env.AWS_S3_FORCE_PATH_STYLE === '1' }); // path style only for local S3 mocks
+  let initial = [];
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    initial = JSON.parse(await r.Body.transformToString());
+  } catch (e) {
+    if (e.name !== 'NoSuchKey') throw e;
+  }
+  const mem = memoryStore(initial);
+  let chain = Promise.resolve();
+  const persist = () => {
+    chain = chain
+      .then(async () => {
+        const items = await mem.list();
+        await s3.send(new PutObjectCommand({
+          Bucket: bucket, Key: key, Body: JSON.stringify(items), ContentType: 'application/json',
+        }));
+      })
+      .catch((e) => console.error('snapshot to S3 failed', e));
+    return chain;
+  };
+  return {
+    list: mem.list,
+    get: mem.get,
+    async save(item, prevVersion) {
+      await mem.save(item, prevVersion);
+      await persist();
+    },
+  };
+}

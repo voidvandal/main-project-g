@@ -1,16 +1,18 @@
-// Run the whole app locally with an in-memory store: `node local/server.mjs`
 // Serves frontend/ and the same API router the Lambda uses, under /api.
+// Locally: `node local/server.mjs` (in-memory store, demo data).
+// In production (Lightsail container): DATA_BUCKET=<s3 bucket> DEMO=0 PORT=8080.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { route } from '../backend/src/handler.mjs';
 import { createService } from '../backend/src/service.mjs';
-import { memoryStore } from '../backend/src/stores.mjs';
+import { memoryStore, s3SnapshotStore } from '../backend/src/stores.mjs';
 
 const PORT = Number(process.env.PORT ?? 5174);
 const root = fileURLToPath(new URL('../frontend/', import.meta.url));
-const service = createService(memoryStore());
+const store = process.env.DATA_BUCKET ? await s3SnapshotStore(process.env.DATA_BUCKET) : memoryStore();
+const service = createService(store);
 await service.seed();
 
 // Optional: pre-fill some seats so the map looks lived-in for a demo video.
@@ -47,4 +49,4 @@ createServer(async (req, res) => {
   } catch {
     res.writeHead(404).end('Not found');
   }
-}).listen(PORT, () => console.log(`SeatSpot running at http://localhost:${PORT}`));
+}).listen(PORT, '0.0.0.0', () => console.log(`SeatSpot running at http://localhost:${PORT}`));
