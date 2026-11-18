@@ -9,8 +9,6 @@ on:
       method:
         description: "auto (tries sam, then direct, then lightsail when services are blocked), sam, direct or lightsail"
         default: ''
-  push:
-    branches: [main]
 
 concurrency: deploy
 

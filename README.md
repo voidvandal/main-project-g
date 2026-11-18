@@ -14,6 +14,16 @@
 
 Other features: a ⚡ power-socket filter, a free/total count for each zone and floor, refresh every 10 s, a mobile-first layout with dark mode, and a printable QR sheet for every desk (`/qr.html`).
 
+## Screenshots
+
+| Live seat map | Check in from a desk QR | Your seat |
+|---|---|---|
+| <img src="docs/screenshots/map.png" width="250"> | <img src="docs/screenshots/checkin.png" width="250"> | <img src="docs/screenshots/my-seat.png" width="250"> |
+
+| Desktop (dark mode) | Printable desk QR codes |
+|---|---|
+| <img src="docs/screenshots/desktop-dark.png" width="420"> | <img src="docs/screenshots/qr-sheet.png" width="420"> |
+
 ## Architecture (all AWS Free Tier)
 
 ```
