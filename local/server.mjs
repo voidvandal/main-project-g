@@ -28,7 +28,7 @@ if (process.env.DEMO !== '0') {
 }
 setInterval(() => service.releaseExpired(), 60_000);
 
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png' };
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');

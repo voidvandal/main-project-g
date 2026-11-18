@@ -256,6 +256,8 @@ def main():
         ctype = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
         if f.suffix in (".js", ".mjs"):
             ctype = "text/javascript"
+        elif f.suffix == ".woff2":
+            ctype = "font/woff2"
         s3.put_object(Bucket=bucket, Key=key, Body=f.read_bytes(), ContentType=ctype, CacheControl="max-age=60")
     cf.create_invalidation(DistributionId=dist_id, InvalidationBatch={
         "Paths": {"Quantity": 1, "Items": ["/*"]}, "CallerReference": str(time.time())})
