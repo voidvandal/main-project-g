@@ -4,3 +4,6 @@
 .aws-sam
 *.log
 backend/test
+.appkey
+storage.log
+*.log

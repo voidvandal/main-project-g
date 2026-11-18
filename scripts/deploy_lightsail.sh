@@ -13,27 +13,39 @@ ACCT=$(aws sts get-caller-identity --query Account --output text)
 BUCKET="seatspot-data-$ACCT-$AWS_REGION"
 APP_USER="seatspot-app"
 
+setup_storage() {
 echo "==> S3 bucket for seat data: $BUCKET"
-if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-  if [ "$AWS_REGION" = us-east-1 ]; then aws s3api create-bucket --bucket "$BUCKET" >/dev/null
-  else aws s3api create-bucket --bucket "$BUCKET" --create-bucket-configuration "LocationConstraint=$AWS_REGION" >/dev/null; fi
+  if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+    if [ "$AWS_REGION" = us-east-1 ]; then aws s3api create-bucket --bucket "$BUCKET" >/dev/null
+    else aws s3api create-bucket --bucket "$BUCKET" --create-bucket-configuration "LocationConstraint=$AWS_REGION" >/dev/null; fi
+  fi
+  aws s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration \
+    BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+  
+  echo "==> IAM user $APP_USER (can only read/write the seat data file)"
+  aws iam get-user --user-name "$APP_USER" >/dev/null 2>&1 || aws iam create-user --user-name "$APP_USER" >/dev/null
+  aws iam put-user-policy --user-name "$APP_USER" --policy-name seatspot-data --policy-document "$(jq -nc --arg b "$DATA_BUCKET" '{
+    Version: "2012-10-17",
+    Statement: [{Effect: "Allow", Action: ["s3:GetObject", "s3:PutObject"], Resource: "arn:aws:s3:::\($b)/seats.json"},
+                {Effect: "Allow", Action: ["s3:ListBucket"], Resource: "arn:aws:s3:::\($b)"}]}')"
+  # Rotate: drop old keys, make a fresh one for this deployment.
+  for k in $(aws iam list-access-keys --user-name "$APP_USER" --query 'AccessKeyMetadata[].AccessKeyId' --output text); do
+    aws iam delete-access-key --user-name "$APP_USER" --access-key-id "$k"
+  done
+  aws iam create-access-key --user-name "$APP_USER" \
+    --query 'AccessKey.[AccessKeyId,SecretAccessKey]' --output text > .appkey
+}
+APP_KEY_ID=""; APP_KEY_SECRET=""; DATA_BUCKET="$BUCKET"
+if ! ( set -e; setup_storage ) > storage.log 2>&1; then
+  cat storage.log
+  echo "::warning::Could not set up S3 storage on this account; seats will be kept in memory (reset when the app restarts)."
+  DATA_BUCKET=""
+else
+  cat storage.log | grep -v -i secret || true
+  read -r APP_KEY_ID APP_KEY_SECRET < .appkey
+  rm -f .appkey
+  [ -n "${GITHUB_ACTIONS:-}" ] && { echo "::add-mask::$APP_KEY_ID"; echo "::add-mask::$APP_KEY_SECRET"; }
 fi
-aws s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration \
-  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-
-echo "==> IAM user $APP_USER (can only read/write the seat data file)"
-aws iam get-user --user-name "$APP_USER" >/dev/null 2>&1 || aws iam create-user --user-name "$APP_USER" >/dev/null
-aws iam put-user-policy --user-name "$APP_USER" --policy-name seatspot-data --policy-document "$(jq -nc --arg b "$BUCKET" '{
-  Version: "2012-10-17",
-  Statement: [{Effect: "Allow", Action: ["s3:GetObject", "s3:PutObject"], Resource: "arn:aws:s3:::\($b)/seats.json"},
-              {Effect: "Allow", Action: ["s3:ListBucket"], Resource: "arn:aws:s3:::\($b)"}]}')"
-# Rotate: drop old keys, make a fresh one for this deployment.
-for k in $(aws iam list-access-keys --user-name "$APP_USER" --query 'AccessKeyMetadata[].AccessKeyId' --output text); do
-  aws iam delete-access-key --user-name "$APP_USER" --access-key-id "$k"
-done
-read -r APP_KEY_ID APP_KEY_SECRET < <(aws iam create-access-key --user-name "$APP_USER" \
-  --query 'AccessKey.[AccessKeyId,SecretAccessKey]' --output text)
-[ -n "${GITHUB_ACTIONS:-}" ] && { echo "::add-mask::$APP_KEY_ID"; echo "::add-mask::$APP_KEY_SECRET"; }
 
 echo "==> Lightsail container service $SERVICE ($POWER)"
 if ! aws lightsail get-container-services --service-name "$SERVICE" >/dev/null 2>&1; then
@@ -56,11 +68,12 @@ IMAGE=$(aws lightsail push-container-image --service-name "$SERVICE" --label app
 [ -n "$IMAGE" ] || { echo "Could not push the image"; exit 1; }
 
 echo "==> Deploying $IMAGE"
-CONTAINERS=$(jq -nc --arg img "$IMAGE" --arg b "$BUCKET" --arg r "$AWS_REGION" \
+ENV_FILTER='with_entries(select(.value != ""))'
+CONTAINERS=$(jq -nc --arg img "$IMAGE" --arg b "$DATA_BUCKET" --arg r "$AWS_REGION" \
   --arg id "$APP_KEY_ID" --arg sec "$APP_KEY_SECRET" --arg admin "${ADMIN_KEY:-}" '{
-  app: {image: $img, ports: {"8080": "HTTP"}, environment: {
+  app: {image: $img, ports: {"8080": "HTTP"}, environment: ({
     PORT: "8080", DEMO: "0", DATA_BUCKET: $b, AWS_REGION: $r,
-    AWS_ACCESS_KEY_ID: $id, AWS_SECRET_ACCESS_KEY: $sec, ADMIN_KEY: $admin}}}')
+    AWS_ACCESS_KEY_ID: $id, AWS_SECRET_ACCESS_KEY: $sec, ADMIN_KEY: $admin} | '"$ENV_FILTER"')}}')
 aws lightsail create-container-service-deployment --service-name "$SERVICE" --containers "$CONTAINERS" \
   --public-endpoint '{"containerName":"app","containerPort":8080,"healthCheck":{"path":"/api/health","successCodes":"200"}}' >/dev/null
 sleep 15
