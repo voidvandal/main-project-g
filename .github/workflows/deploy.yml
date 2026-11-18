@@ -35,12 +35,37 @@ jobs:
         with:
           use-installer: true
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Check and load AWS keys
         if: env.HAS_KEYS == 'true'
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+        env:
+          RAW_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          RAW_SECRET: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          # Strip spaces, line breaks and quotes that sneak in when pasting.
+          ID=$(printf '%s' "$RAW_ID" | tr -d '[:space:]"'"'")
+          SECRET=$(printf '%s' "$RAW_SECRET" | tr -d '[:space:]"'"'")
+          echo "::add-mask::$ID"; echo "::add-mask::$SECRET"
+          ok=1
+          if ! [[ "$ID" =~ ^(AKIA|ASIA)[A-Z0-9]{16}$ ]]; then
+            ok=0
+            if [[ "$SECRET" =~ ^(AKIA|ASIA)[A-Z0-9]{16}$ ]]; then
+              echo "::error::The two keys look swapped. AWS_ACCESS_KEY_ID should be the short key starting with AKIA."
+            else
+              echo "::error::AWS_ACCESS_KEY_ID should be 20 characters starting with AKIA (got ${#ID} characters)."
+            fi
+          fi
+          if [ "${#SECRET}" -ne 40 ]; then
+            ok=0
+            echo "::error::AWS_SECRET_ACCESS_KEY should be exactly 40 characters (got ${#SECRET})."
+          fi
+          [ "$ok" = 1 ] || exit 1
+          {
+            echo "AWS_ACCESS_KEY_ID=$ID"
+            echo "AWS_SECRET_ACCESS_KEY=$SECRET"
+            echo "AWS_DEFAULT_REGION=$AWS_REGION"
+          } >> "$GITHUB_ENV"
+          aws sts get-caller-identity >/dev/null && echo "AWS accepted the keys" || {
+            echo "::error::AWS rejected these keys. Create a new access key in IAM and paste it again."; exit 1; }
 
       - name: Deploy
         if: env.HAS_KEYS == 'true'
