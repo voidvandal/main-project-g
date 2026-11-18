@@ -132,3 +132,15 @@ main-project-g/
 | `ADMIN_KEY` | Any long random string (used to seed the seats) |
 
 The run's summary page shows the live app URL. Until the secrets exist, the workflow skips deployment instead of failing.
+
+### If CloudFormation is blocked on your account
+
+Some AWS accounts (for example college or lab accounts inside an AWS Organization) block CloudFormation. Then `scripts/deploy_direct.py` creates the same resources with direct AWS API calls. The GitHub workflow switches to it automatically, or you can run it yourself:
+
+```bash
+pip install boto3
+```
+
+```bash
+ADMIN_KEY='choose-a-long-secret' python3 scripts/deploy_direct.py
+```
