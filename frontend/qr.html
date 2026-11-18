@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SeatSpot · Desk QR codes</title>
+  <style>
+    :root { --ink: #1c1f23; --muted: #646b73; --line: #d9d6cd; --brand: #0f766e; }
+    * { box-sizing: border-box; }
+    body { font: 14px/1.4 system-ui, sans-serif; color: var(--ink); background: #fff; margin: 0 auto; max-width: 960px; padding: 16px; }
+    header { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    h1 { margin: 0; font-size: 20px; }
+    p { margin: 4px 0 0; color: var(--muted); }
+    button { font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 10px 16px; background: var(--brand); color: #fff; cursor: pointer; }
+    .sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+    .card { border: 1.5px dashed var(--line); border-radius: 12px; padding: 12px; text-align: center; break-inside: avoid; }
+    .card svg { width: 100%; max-width: 140px; height: auto; }
+    .id { font-size: 20px; font-weight: 800; margin-top: 4px; }
+    .zone { color: var(--muted); font-size: 12px; }
+    .cta { font-size: 11px; margin-top: 4px; color: var(--brand); font-weight: 600; }
+    @media print { header { display: none; } body { padding: 0; } .sheet { grid-template-columns: repeat(4, 1fr); } }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Desk QR codes</h1>
+      <p>Print and stick one on each desk. Scanning opens the check-in for that seat.</p>
+    </div>
+    <button onclick="print()">Print</button>
+  </header>
+  <div class="sheet" id="sheet">Loading…</div>
+  <script src="vendor/qrcode.js"></script>
+  <script>
+    const API = window.SEATSPOT_API ?? '/api';
+    const base = new URL('./', location.href).href;
+    fetch(API + '/seats')
+      .then((r) => r.json())
+      .then(({ seats }) => {
+        document.getElementById('sheet').innerHTML = seats
+          .map((s) => {
+            const qr = qrcode(0, 'M');
+            qr.addData(`${base}?seat=${encodeURIComponent(s.seatId)}`);
+            qr.make();
+            return `<div class="card">${qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true })}
+              <div class="id">${s.seatId}</div><div class="zone">${s.floor} · ${s.zone}</div>
+              <div class="cta">Scan to check in · SeatSpot</div></div>`;
+          })
+          .join('');
+      })
+      .catch((e) => (document.getElementById('sheet').textContent = 'Could not load seats: ' + e.message));
+  </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "seatspot-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lambda code for SeatSpot. No runtime dependencies: the AWS SDK v3 is provided by the Lambda Node.js runtime.",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  }
+}
