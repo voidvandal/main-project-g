@@ -1,5 +1,7 @@
 # SeatSpot: live library seat finder
 
+**▶ Live demo: https://voidvandal.github.io/main-project-g/**: open it on your phone. The demo runs the real seat logic in your browser with simulated students; the production version runs on AWS (architecture below).
+
 **The problem:** at exam time our library fills up fast. Students walk across campus and climb two floors only to find no free seat. Seats are also "reserved" all day with a bag and nobody sitting there.
 
 **The solution:** SeatSpot is a web app that shows which library seats are free right now, floor by floor. Every desk has a QR code. A student scans it to check in, and the seat turns red for everyone. Seats are freed **automatically**:
@@ -57,6 +59,10 @@ Other features: a ⚡ power-socket filter, a free/total count for each zone and 
 | `POST /api/seats/{id}/checkout` | `x-seat-token` | Leave |
 | `POST /api/seats/{id}/report` | | Flag as unattended (hold cut to 15 min) |
 | `POST /api/admin/seed` | `x-admin-key` | Create the seats from `backend/src/layout.mjs` |
+
+## Live demo (GitHub Pages)
+
+`.github/workflows/pages.yml` publishes `frontend/` plus the seat logic from `backend/src/` to GitHub Pages. On a static host the app switches to demo mode: the same `service.mjs` rules (the ones the unit tests cover) run in the browser, state is kept in `localStorage`, and simulated students check in and out. Add `?demo` to any local URL to try the same mode.
 
 ## Run it locally (no AWS account needed)
 

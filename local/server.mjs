@@ -11,6 +11,7 @@ import { memoryStore, s3SnapshotStore } from '../backend/src/stores.mjs';
 
 const PORT = Number(process.env.PORT ?? 5174);
 const root = fileURLToPath(new URL('../frontend/', import.meta.url));
+const backendSrc = fileURLToPath(new URL('../backend/src/', import.meta.url)); // for ?demo mode
 const store = process.env.DATA_BUCKET ? await s3SnapshotStore(process.env.DATA_BUCKET) : memoryStore();
 const service = createService(store);
 await service.seed();
@@ -28,7 +29,7 @@ if (process.env.DEMO !== '0') {
 }
 setInterval(() => service.releaseExpired(), 60_000);
 
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png' };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png' };
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -41,8 +42,11 @@ createServer(async (req, res) => {
     res.writeHead(r.statusCode, r.headers).end(r.body);
     return;
   }
-  const file = normalize(join(root, url.pathname === '/' ? 'index.html' : url.pathname));
-  if (!file.startsWith(root)) return res.writeHead(403).end();
+  const isBackend = url.pathname.startsWith('/backend/');
+  const base = isBackend ? backendSrc : root;
+  const rel = isBackend ? url.pathname.slice('/backend/'.length) : url.pathname === '/' ? 'index.html' : url.pathname;
+  const file = normalize(join(base, rel));
+  if (!file.startsWith(base)) return res.writeHead(403).end();
   try {
     const data = await readFile(file);
     res.writeHead(200, { 'content-type': types[extname(file)] ?? 'application/octet-stream' }).end(data);

@@ -1,6 +1,5 @@
 // Business rules for library seats. Pure logic on top of a store, so it runs
 // the same in Lambda (DynamoDB) and locally / in tests (in-memory).
-import { createHash, randomBytes } from 'node:crypto';
 import { buildSeats } from './layout.mjs';
 import { ConflictError } from './stores.mjs';
 
@@ -18,8 +17,18 @@ export class HttpError extends Error {
   }
 }
 
-const hashId = (rollNo) =>
-  createHash('sha256').update(String(rollNo).trim().toUpperCase()).digest('hex').slice(0, 16);
+// Web Crypto (globalThis.crypto) works in Node 20+ and in browsers, so the same
+// rules can also run client-side for the GitHub Pages demo.
+async function hashId(rollNo) {
+  const data = new TextEncoder().encode(String(rollNo).trim().toUpperCase());
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
+  return [...digest.slice(0, 8)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function newToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(18));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
 
 const isHeld = (s, now) => s.token && s.expiresAt > now;
 
@@ -88,7 +97,7 @@ export function createService(store, opts = {}) {
         throw new HttpError(400, 'Enter a valid roll / ID number');
       }
       const now = clock();
-      const holderHash = hashId(rollNo);
+      const holderHash = await hashId(rollNo);
 
       // One seat per student: refuse if this roll number already holds a seat.
       const existing = (await store.list()).find((s) => isHeld(s, now) && s.holderHash === holderHash);
@@ -99,7 +108,7 @@ export function createService(store, opts = {}) {
       const s = await load(seatId);
       if (isHeld(s, now)) throw new HttpError(409, `Seat ${seatId} is already taken`);
 
-      const token = randomBytes(18).toString('base64url');
+      const token = newToken();
       const next = {
         ...freeSeat(s),
         status: 'occupied',

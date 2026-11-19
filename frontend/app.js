@@ -20,7 +20,14 @@ function setMine(v) {
 }
 
 // ---------- api ----------
+// Static hosting (GitHub Pages) or ?demo: run the real seat rules in the browser.
+const DEMO = location.hostname.endsWith('github.io') || new URLSearchParams(location.search).has('demo');
+let demoApi;
 async function call(path, { method = 'GET', body, token } = {}) {
+  if (DEMO) {
+    demoApi ??= import('./demo.js').then((m) => m.createDemoApi(new URL('./backend', import.meta.url).href));
+    return (await demoApi)(path, { method, body, token });
+  }
   const res = await fetch(API + path, {
     method,
     headers: { 'content-type': 'application/json', ...(token ? { 'x-seat-token': token } : {}) },
@@ -316,13 +323,23 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
 }
 
+if (DEMO) {
+  $('#live').lastChild.textContent = 'Live demo';
+  $('#demoNote').hidden = false;
+  $('#resetDemo').addEventListener('click', async (ev) => {
+    ev.preventDefault();
+    await (await import('./demo.js')).resetDemo();
+    location.reload();
+  });
+}
+
 // Boot: load seats, then honour ?seat=ID from a desk QR code.
 await refresh();
 const deep = new URLSearchParams(location.search).get('seat');
 if (deep) {
   const s = state.seats.find((x) => x.seatId === deep);
   if (s) { state.floor = s.floor; render(); openSeat(deep); }
-  history.replaceState(null, '', location.pathname);
+  history.replaceState(null, '', location.pathname + (DEMO && !location.hostname.endsWith('github.io') ? '?demo' : ''));
 }
 setInterval(refresh, REFRESH_MS);
 setInterval(renderMine, 15_000);

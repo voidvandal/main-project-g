@@ -33,10 +33,13 @@
   <script src="vendor/qrcode.js"></script>
   <script>
     const API = window.SEATSPOT_API ?? '/api';
-    const base = new URL('./', location.href).href;
-    fetch(API + '/seats')
-      .then((r) => r.json())
-      .then(({ seats }) => {
+    const demo = location.hostname.endsWith('github.io') || new URLSearchParams(location.search).has('demo');
+    const getSeats = demo
+      ? import('./backend/layout.mjs').then((m) => m.buildSeats())
+      : fetch(API + '/seats').then((r) => r.json()).then((d) => d.seats);
+    getSeats
+      .then((seats) => {
+        const base = new URL('./', location.href).href;
         document.getElementById('sheet').innerHTML = seats
           .map((s) => {
             const qr = qrcode(0, 'M');
